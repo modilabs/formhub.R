@@ -10,6 +10,8 @@ edu_formfile <- str_c(test_dir, "fixtures/edu1.json")
 hlt_formfile <- str_c(test_dir, "fixtures/healthschema.json")
 good_eats_datafile <- str_c(test_dir, "fixtures/good_eats.csv")
 good_eats_formfile <- str_c(test_dir, "fixtures/good_eats.json")
+polio_formfile <- str_c(test_dir, "fixtures/Polio.json")
+polio_datafile <- str_c(test_dir, "fixtures/Polio.xls")
 
 edu_rawdf <- read.csv(edu_datafile, na.strings="n/a", stringsAsFactors=FALSE, header=TRUE)
 hlt_form_df <- form_to_df(fromJSON(hlt_formfile))
@@ -162,4 +164,12 @@ test_that("column deletion works", {
   expect_false("num_pry_total_gender.num_pry_male" %in% names(edu_df_dropped))
   expect_false("mylga_lga_in_benue" %in% names(edu_df_dropped))
   expect_false("mylga_zone" %in% names(edu_df_dropped))
+})
+
+test_that("reading repeats in work", {
+  polio_formhubObj <- formhubRead(polio_datafile, polio_formfile)
+  expect_that(length(polio_formhubObj@repeats), equals(1))
+  child_frame <- as.data.frame(polio_formhubObj@repeats[[1]])
+  expect_true("X_parent_index" %in% names(child_frame))
+  expect_true("X_index" %in% names(as.data.frame(polio_formhubObj)))
 })

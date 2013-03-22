@@ -3,9 +3,9 @@ library(stringr)
 library(plyr)
 library(RCurl)
 library(lubridate)
+library(gdata)
 
-
-setClass("formhubData", representation(data="data.frame", form="data.frame"))
+setClass("formhubData", representation(data="data.frame", form="data.frame", repeats="list"))
 
 #' Get just the data out of a formhub object. as.data.frame(obj) equivalent to obj@data
 #'
@@ -120,9 +120,24 @@ formhubDownload = function(formName, uname, pass=NA, ...) {
 #' good_eatsNA$amount # notice that the value that was 999 is now missing. This is helpful when using values such
 #'                    # as 999 to indicate no data
 formhubRead  = function(csvfilename, jsonfilename, extraFormDF=data.frame(), dropCols="", na.strings=c("n/a")) {
-  dataframe <- read.csv(csvfilename, stringsAsFactors=FALSE, header=TRUE, na.strings=na.strings)
-  
-  formhubCast(dataframe, form_to_df(fromJSON(jsonfilename)), extraFormDF=extraFormDF, dropCols=dropCols)
+  dataframe <-
+    if(str_detect(csvfilename, '.csv$')) {
+      read.csv(csvfilename, stringsAsFactors=FALSE, header=TRUE, na.strings=na.strings)
+    } else if(str_detect(csvfilename, '.xls$')) {
+      read.xls(csvfilename,stringsAsFactors=FALSE, header=TRUE, na.strings=na.strings)
+    } else {
+      data.frame()
+    }
+  formdf = form_to_df(fromJSON(jsonfilename))
+  repeatNames = subset(formdf, type=="repeat")$name
+  repeatObjs = llply(repeatNames, function(repeatname) {
+    repeatname_base = tail(unlist(str_split('consentyes.childrenyes.child','\\.')),1)
+    repeatdata = read.xls(csvfilename, sheet=repeatname_base)
+    repeatschema = subset(formdf, formdf$name %in% names(repeatdata))
+    formhubCast(repeatdata, repeatschema, extraFormDF=extraFormDF, dropCols=dropCols)
+  })
+  formhubCast(dataframe, formdf, extraFormDF=extraFormDF, dropCols=dropCols, 
+              setNames(repeatObjs, repeatNames))
 }
 
 #' Casts a dataframe to the right types based on a form-dataframe.
@@ -139,7 +154,7 @@ formhubRead  = function(csvfilename, jsonfilename, extraFormDF=data.frame(), dro
 #' @examples
 #' 
 #' See examples under formhubRead; this should be used through formhubRead in almost all cases
-formhubCast  = function(dataDF, formDF, extraFormDF=data.frame(), dropCols="") {
+formhubCast  = function(dataDF, formDF, extraFormDF=data.frame(), dropCols="", repeats=list()) {
   dataDF <- removeColumns(dataDF, dropCols)
 
   extraFormDF <- colwise(as.character)(extraFormDF)
@@ -147,7 +162,8 @@ formhubCast  = function(dataDF, formDF, extraFormDF=data.frame(), dropCols="") {
   formDF <- formDF[!duplicated(formDF$name),]
   
   new("formhubData", data=recastDataFrameBasedOnFormDF(dataDF, formDF),
-                     form=formDF)
+                     form=formDF,
+                     repeats=repeats)
 }
 
 #' Converts formhub form.json format to dataframe format. Dataframe has name, type, label columns.
@@ -159,21 +175,26 @@ formhubCast  = function(dataDF, formDF, extraFormDF=data.frame(), dropCols="") {
 form_to_df = function(formJSON) {
   form_to_df_internal = function(formJSON, prefix="") {
     ldply(formJSON[["children"]], function(child) {
-      nom <- if (prefix == "") { child[["name"]] } else { paste(prefix, child[["name"]], sep=".") }
-  
-      if (child[["type"]] == "group") {
+      nom <- if (prefix == "") { child[["name"]] } 
+             else { paste(prefix, child[["name"]], sep=".") }
+      lab <- if("label" %in% names(child)) {child[["label"]]} else {child[["name"]]}
+      typ <- child[["type"]]
+      
+      if (typ == "group") {
         form_to_df_internal(child, nom)
-      } else if (child[["type"]] == "select all that apply") {
+      } else if (typ == "select all that apply") {
 
         options <- child[["children"]]        
-        nameprefix <- ifelse(prefix=="", child[["name"]], str_c(prefix, child[["name"]], sep="."))
+        nameprefix <- nom
         names <- paste(nameprefix, sapply(options, function(o) o['name']), sep=".")
         
         labels <- sapply(options, function(o) { paste( child[["label"]], o['label'], sep=" >> ")})
         data.frame(name=names, label=labels, type="boolean", stringsAsFactors=F)
+      } else if (typ == "repeat") {
+        rbind(data.frame(name=nom, type=typ, label=lab, stringsAsFactors=F),
+              form_to_df_internal(child, nom))
       } else {
-        data.frame(name=nom, type=child[["type"]], 
-                   label=if("label" %in% names(child)) {child[["label"]]} else {child[["name"]]},
+        data.frame(name=nom, type=typ, label=lab,
                    stringsAsFactors=F)
       }
     })
