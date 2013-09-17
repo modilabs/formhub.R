@@ -1,0 +1,33 @@
+<link href="http://kevinburke.bitbucket.org/markdowncss/markdown.css" rel="stylesheet"></link>
+Polio mapping in Calcutta
+========================================================
+
+```{r warning=FALSE, message=FALSE, echo=FALSE}
+setwd("~/Code/formhub.R/")
+library(formhub)
+source("R/formhub.R")
+p <- formhubRead("tests/fixtures/Polio.xls", "tests/fixtures/Polio.json")
+children <- repeat_to_dataframe(p, 1, dropRepeatPrefix = T)
+
+# DROP EACH CHILD WHOSE NAME IS EITHER nothing or test
+children <- subset(children, ! child.child_name %in% c("test", ""))
+
+# At each household, see whether ALL children have maintained health cards
+g <- ddply(children,.(gps), transform, 
+           HaveMaintainedCard = all(child.health_card=='yes' & child.card_maintained=="yes"))
+
+```
+
+```{r maps, warning=FALSE, message=FALSE, echo=FALSE}
+
+library(ggplot2)
+library(ggmap)
+# Figure out the center point, to download the map
+center_point <- c(lon = mean(children$`_gps_longitude`, na.rm = T), 
+    lat = mean(children$`_gps_latitude`, na.rm = T))
+# Download the map tile
+baselayer <- ggmap(get_map(location = center_point, source = "osm", filename = "maptemp", zoom = 18), extent = "panel")
+# Map whether children have their Health Cards Maintained
+baselayer + geom_point(data=g, aes(x=X_gps_longitude, y=X_gps_latitude, 
+   color=HaveMaintainedCard)) + labs(x="Longitute", y="Latitutde", color="Has a maintained card")
+```
