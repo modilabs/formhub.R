@@ -264,6 +264,14 @@ formhubCast  = function(dataDF, formDF, extraFormDF=data.frame(), dropCols="", c
 #' @examples
 #' good_eats_form_df <- form_to_df(fromJSON("~/Downloads/good_eats.json"))
 form_to_df = function(formJSON, keepGroupNames=TRUE) {
+  label_from_item = function(item) {
+    label <- if("label" %in% names(item)) {item[["label"]]} else {item[["name"]]}
+    if(length(label) > 1) { 
+      RJSONIO::toJSON(label)
+    } else {
+      label
+    }
+  }
   form_to_df_internal = function(thisJSON, prefix="") {
     ldply(thisJSON[["children"]], function(child) {
       nom <- if (prefix == "") { child[["name"]] } else { paste(prefix, child[["name"]], sep=".") }
@@ -284,17 +292,17 @@ form_to_df = function(formJSON, keepGroupNames=TRUE) {
       } else if (child[["type"]] == "select one") {
         if("children" %in% names(child)) {
             data.frame(name=nom, type=child[["type"]], options=toJSON(child$children),
-                   label=if("label" %in% names(child)) {child[["label"]]} else {child[["name"]]},
+                   label=label_from_item(child),
                    stringsAsFactors=F)
         } else if ("itemset" %in% names(child)) {
             data.frame(name=nom, type=child[["type"]],
                      options=toJSON(formJSON$choices[[child$itemset]]), # options are more complex with itemset
-                     label=if("label" %in% names(child)) {child[["label"]]} else {child[["name"]]},
+                     label=label_from_item(child),
                      stringsAsFactors=F)
         }
       } else {
         data.frame(name=nom, type=child[["type"]], options=NA,
-                   label=if("label" %in% names(child)) {child[["label"]]} else {child[["name"]]},
+                   label=label_from_item(child),
                    stringsAsFactors=F)
       }
     })

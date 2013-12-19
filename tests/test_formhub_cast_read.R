@@ -3,8 +3,8 @@ library(stringr)
 library(formhub)
 
 test_dir = ""
+#test_dir = "~/Code/formhub.R/tests/"
 #test_dir("~/Code/formhub.R/tests/")
-
 edu_datafile <- str_c(test_dir, "fixtures/edu1.csv")
 edu_formfile <- str_c(test_dir, "fixtures/edu1.json")
 hlt_datafile <- str_c(test_dir, "fixtures/health1.csv")
