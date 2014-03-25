@@ -7,7 +7,8 @@ library(sp)
 library(doBy)
 
 
-setClass("formhubData", representation("data.frame", form="data.frame"), contains="data.frame")
+setClass("formhubData", representation("data.frame", form="data.frame", 
+                                       lastDownloaded="POSIXct"), contains="data.frame")
 
 #' Produce a data.frame out of a formhubDataObj
 #'
@@ -143,7 +144,8 @@ replaceAllNamesWithLabels <- function(formhubDataObj, language=NULL) {
     levels(data[,col_name]) <<- recodeVar(levels(data[,col_name]), 
                 as.character(old$name), as.character(old$label), default=NA, keep.na=T)
   })
-  replaceHeaderNamesWithLabels(new("formhubData", data, form=form))
+  replaceHeaderNamesWithLabels(new("formhubData", data, form=form, 
+                                   lastDownloaded=formhubDataObj@lastDownloaded))
 }
 
 #' Download data from formhub.
@@ -162,7 +164,7 @@ replaceAllNamesWithLabels <- function(formhubDataObj, language=NULL) {
 #' good_eats # is a data frame of all the data
 #' good_eats@form # is the form for that data, encoded as a dataframe
 #' privateData <- formhubDownload("Private_Data_For_Testing", uname="formhub_r", pass="t3st~p4ss")
-formhubDownload = function(formName, uname, pass=NA, ...) {
+formhubDownload = function(formName, uname, pass=NA, cacheDirectory=NA, ...) {
   fUrl <- function(formName, uname, form=F) {
     str_c('http://formhub.org/', uname, '/forms/', formName,
           ifelse(form,'/form.json', '/data.csv'))
@@ -175,6 +177,7 @@ formhubDownload = function(formName, uname, pass=NA, ...) {
   #if(!url.exists(formUrl)) { stop("could not find ", formUrl)}
   
   # get the data, depending on public or not
+  downloadTime <- now()
   dataCSVstr <- ifelse(is.na(pass),
                  getURI(dataUrl),
                  getURI(dataUrl, userpwd=str_c(uname,pass,sep=":"), httpauth = 1L))
@@ -184,7 +187,8 @@ formhubDownload = function(formName, uname, pass=NA, ...) {
   formJSON <- ifelse(is.na(pass),
                  getURI(formUrl),
                  getURI(formUrl, userpwd=str_c(uname,pass,sep=":"), httpauth = 1L))
-  formhubRead(textConnection(dataCSVstr), formJSON, ...)
+  
+  formhubRead(textConnection(dataCSVstr), formJSON, lastDownloaded = downloadTime)
 }
 
 #' Reads data from a passed csv filename and json filename into a formhubData object.
@@ -218,7 +222,7 @@ formhubDownload = function(formName, uname, pass=NA, ...) {
 #' good_eatsNA$amount # notice that the value that was 999 is now missing. This is helpful when using values such
 #'                    # as 999 to indicate no data
 formhubRead  = function(csvfilename, jsonfilename, extraFormDF=data.frame(), dropCols="", na.strings=c("n/a"),
-                        convert.dates=TRUE, keepGroupNames=TRUE) {
+                        convert.dates=TRUE, keepGroupNames=TRUE, ...) {
   dataframe <- read.csv(csvfilename, stringsAsFactors=FALSE, header=TRUE, na.strings=na.strings)
   formDF <- form_to_df(RJSONIO::fromJSON(jsonfilename, encoding='utf-8'), keepGroupNames=keepGroupNames)
   
@@ -247,7 +251,7 @@ formhubRead  = function(csvfilename, jsonfilename, extraFormDF=data.frame(), dro
   }))
 
   formhubCast(dataframe, formDF, extraFormDF=extraFormDF, dropCols=dropCols,
-              convert.dates=convert.dates)
+              convert.dates=convert.dates, ...)
 }
 
 #' Casts a dataframe to the right types based on a form-dataframe.
@@ -264,7 +268,8 @@ formhubRead  = function(csvfilename, jsonfilename, extraFormDF=data.frame(), dro
 #' @examples
 #' 
 #' #See examples under formhubRead; this should be used through formhubRead in almost all cases
-formhubCast  = function(dataDF, formDF, extraFormDF=data.frame(), dropCols="", convert.dates=TRUE) {
+formhubCast  = function(dataDF, formDF, extraFormDF=data.frame(), dropCols="", convert.dates=TRUE, 
+                        lastDownloaded=NA) {
   dataDF <- removeColumns(dataDF, dropCols)
 
   extraFormDF <- colwise(as.character)(extraFormDF)
@@ -272,7 +277,7 @@ formhubCast  = function(dataDF, formDF, extraFormDF=data.frame(), dropCols="", c
   formDF <- formDF[!duplicated(formDF$name),]
   
   new("formhubData", recastDataFrameBasedOnFormDF(dataDF, formDF, convert.dates=convert.dates),
-                     form=formDF)
+                     form=formDF, lastDownloaded=as.POSIXct(lastDownloaded))
 }
 
 #' Converts formhub form.json format to dataframe format. Dataframe has name, type, label columns.
@@ -400,7 +405,7 @@ addPhotoURLs = function(formhubDataObj, formhubUsername, type="url") {
     ), paste0(photoColName, c("_URL_original", "_URL_medium", "_URL_small")))
   })
   tmp <- cbind(formhubDataObj, do.call(cbind, tmp))
-  new("formhubData", tmp, form=formhubDataObj@form)
+  new("formhubData", tmp, form=formhubDataObj@form, lastDownloaded=formhubDataObj@lastDownloaded)
 }
 
 #' Helper function to remove columns from data based on reg-exp matching. Also takes list of strings.

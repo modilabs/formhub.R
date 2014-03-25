@@ -137,6 +137,11 @@ test_that("formhubRead parses dates in wild formhub data properly", {
   
 })
 
+test_that("formhubRead sets lastDownloaded to NA", {
+  expect_true(is.na(good_eats@lastDownloaded))
+  expect_true(is.na(edu_formhubObj@lastDownloaded))
+})
+
 test_that("passing nice extraFormDF in works", {
   extraFormDF = data.frame(name=c("mylga",      "mylga_state", "deviceid"),
                            type=c("select one", "select one", "integer"),

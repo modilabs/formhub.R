@@ -32,3 +32,10 @@ test_that("downloading public data (with private form) falls back gracefully", {
   expect_true(is.factor(data$functional))
   expect_true(is.character(data$wp_id))
 })
+
+test_that("downloaded data has a lastDownloaded timestamp within last 10 minutes", {
+  good_eats <- formhubDownload("good_eats", uname="mberg")
+  expect_true(as.numeric(now() - good_eats@lastDownloaded) < 600) # request did not take more than 10 minutes
+  data <- formhubDownload("Public_Data_Private_Schema", uname="formhub_r")
+  expect_true(as.numeric(now() - data@lastDownloaded) < 600) # request did not take more than 10 minutes
+})
