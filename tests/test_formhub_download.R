@@ -39,3 +39,10 @@ test_that("downloaded data has a lastDownloaded timestamp within last 10 minutes
   data <- formhubDownload("Public_Data_Private_Schema", uname="formhub_r")
   expect_true(as.numeric(now() - data@lastDownloaded) < 600) # request did not take more than 10 minutes
 })
+
+test_that("downloaded data can be saved to cacheDirectory", {
+  good_eats <- formhubDownload("good_eats", uname="mberg", 
+                               cacheDirectory="~/Code/formhub.R/tests/fixtures/")
+  expect_true(file.exists("~/Code/formhub.R/tests/fixtures/mberg-good_eats.formhubData.RDS"))
+  file.remove("~/Code/formhub.R/tests/fixtures/mberg-good_eats.formhubData.RDS")
+})

@@ -188,7 +188,38 @@ formhubDownload = function(formName, uname, pass=NA, cacheDirectory=NA, ...) {
                  getURI(formUrl),
                  getURI(formUrl, userpwd=str_c(uname,pass,sep=":"), httpauth = 1L))
   
-  formhubRead(textConnection(dataCSVstr), formJSON, lastDownloaded = downloadTime)
+  # Depending on whether we are caching or not, just return the data, or save it and return
+  formhubObj <- formhubRead(textConnection(dataCSVstr), formJSON, lastDownloaded = downloadTime)
+  if(!is.na(cacheDirectory)) {
+    stopifnot(file.exists(cacheDirectory))
+    cacheDirectory <- normalizePath(cacheDirectory)
+    saveRDS(formhubObj,
+            file.path(cacheDirectory, sprintf("%s-%s.formhubData.RDS", uname, formName)))
+  }
+  return(formhubObj)
+}
+
+#' Checks for whether new data has 
+#' 
+#' @param csvfilename filename (or a connection object) that has the formhub data
+#' @export
+#' 
+#' @return formhubDataObj a formhubData Object, with new data
+downloadNewData = function(formhubObj, fullReDownloadThreshold=days(7)) {
+  if(!is.na(formhubObj@lastDownloaded) && 
+    now() - formhubObj@lastDownloaded < as.duration(fullReDownloadThreshold)) {
+    ## Case 1: full re-download  
+    
+    stop("not implemented")
+    ## note: will need to store all formhubDownload arguments in the formhubObj itself
+  } else {
+    ## Case 2: incremental download  
+  
+    formhubObj
+  } else {
+    ## Case 3: nothing to do here, move along
+    
+  }
 }
 
 #' Reads data from a passed csv filename and json filename into a formhubData object.
